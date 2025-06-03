@@ -1,16 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ngames/models/chat_message_model.dart';
-import 'package:ngames/models/user_model.dart'; // For fetching users as contacts
-import 'package:ngames/services/auth_service.dart'; // To get current user ID
-
-// Re-use firestoreProvider from high_score_service.dart or define it here if not already globally accessible
-// For now, assuming it's defined elsewhere or we define a new one.
-// final firestoreProvider = Provider<FirebaseFirestore>((ref) => FirebaseFirestore.instance);
+import 'package:ngames/models/user_model.dart';
+import 'package:ngames/services/auth_service.dart';
 
 final messagingServiceProvider = Provider<MessagingService>((ref) {
   return MessagingService(
-    FirebaseFirestore.instance,
+    ref.watch(firestoreProvider),
     ref.watch(firebaseAuthProvider),
   );
 });
@@ -24,24 +21,42 @@ class MessagingService {
   MessagingService(this._firestore, this._firebaseAuth);
 
   String? get currentUserId => _firebaseAuth.currentUser?.uid;
-  String? get currentUserEmail =>
-      _firebaseAuth.currentUser?.email; // Or displayName
+
+  Future<String?> getCurrentUserDisplayName() async {
+    if (currentUserId == null) return null;
+    try {
+      final userDoc =
+          await _firestore
+              .collection(_usersCollectionPath)
+              .doc(currentUserId)
+              .get();
+      if (userDoc.exists && userDoc.data() != null) {
+        return userDoc.data()!['displayName'] as String? ??
+            _firebaseAuth.currentUser?.email;
+      }
+    } catch (e) {
+      // print('Error fetching user display name: $e');
+    }
+    return _firebaseAuth.currentUser?.email; // Fallback to email
+  }
 
   // Send a message
   Future<void> sendMessage(String receiverId, String text) async {
-    if (currentUserId == null || text.trim().isEmpty) return;
+    final senderId = currentUserId;
+    final senderName =
+        await getCurrentUserDisplayName(); // Get sender's display name
+    if (senderId == null || text.trim().isEmpty) return;
 
     final message = ChatMessage(
-      senderId: currentUserId!,
+      senderId: senderId,
       receiverId: receiverId,
       text: text.trim(),
       timestamp: Timestamp.now(),
-      senderName: currentUserEmail, // Or a display name if you have it
+      senderName: senderName ?? 'Unknown User', // Use fetched display name
     );
 
-    // Create a chat ID that is consistent regardless of who is sender/receiver
-    List<String> ids = [currentUserId!, receiverId];
-    ids.sort(); // Ensures chatID is the same for both users
+    List<String> ids = [senderId, receiverId];
+    ids.sort();
     String chatId = ids.join('_');
 
     await _firestore
@@ -49,19 +64,14 @@ class MessagingService {
         .doc(chatId)
         .collection('messages')
         .add(message.toFirestore());
-
-    // Optionally, update a 'lastMessage' field in a document representing the chat itself
-    // for chat list previews, but that's an advanced feature for now.
   }
 
   // Get messages for a specific chat
   Stream<List<ChatMessage>> getChatMessages(String receiverId) {
     if (currentUserId == null) return Stream.value([]);
-
     List<String> ids = [currentUserId!, receiverId];
     ids.sort();
     String chatId = ids.join('_');
-
     return _firestore
         .collection(_chatsCollectionPath)
         .doc(chatId)
@@ -80,28 +90,17 @@ class MessagingService {
     if (currentUserId == null) return Stream.value([]);
     return _firestore
         .collection(_usersCollectionPath)
-        .where(
-          FieldPath.documentId,
-          isNotEqualTo: currentUserId,
-        ) // Exclude current user
+        .where(FieldPath.documentId, isNotEqualTo: currentUserId)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) {
-            // Assuming your UserModel has a fromFirestore or similar constructor
-            // And that user documents in Firestore have 'uid' and 'email' fields.
-            // If your UserModel structure or Firestore user document structure is different, adjust this.
-            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+            final data = doc.data(); // is Map<String, dynamic>
             return UserModel(
-              uid: doc.id, // Use document ID as UID
+              uid: doc.id,
               email: data['email'] as String?,
-              // Add other fields if your UserModel has them and they exist in Firestore
+              displayName: data['displayName'] as String?,
             );
           }).toList();
         });
   }
-
-  // Note: For this to work, you need to store user data (at least email/displayName)
-  // in a 'users' collection in Firestore when a user registers.
-  // The AuthService currently doesn't do this. This would be an enhancement to AuthService.
-  // For now, this method might return users with null emails if not stored.
 }
