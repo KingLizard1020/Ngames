@@ -1,7 +1,25 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// Provider for FirebaseAuth instance
+final firebaseAuthProvider = Provider<FirebaseAuth>(
+  (ref) => FirebaseAuth.instance,
+);
+
+// Provider for AuthService
+final authServiceProvider = Provider<AuthService>((ref) {
+  return AuthService(ref.watch(firebaseAuthProvider));
+});
+
+// StreamProvider for auth state changes
+final authStateChangesProvider = StreamProvider<User?>((ref) {
+  return ref.watch(authServiceProvider).authStateChanges;
+});
 
 class AuthService {
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+  final FirebaseAuth _firebaseAuth;
+
+  AuthService(this._firebaseAuth); // Constructor takes FirebaseAuth instance
 
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
@@ -15,9 +33,9 @@ class AuthService {
         password: password,
       );
       return result.user;
-    } catch (e) {
-      // print(e.toString()); // Consider using a logger
-      return null;
+    } on FirebaseAuthException {
+      // Re-throw the Firebase specific exception to be caught by the UI
+      rethrow;
     }
   }
 
@@ -31,9 +49,9 @@ class AuthService {
         password: password,
       );
       return result.user;
-    } catch (e) {
-      // print(e.toString());
-      return null;
+    } on FirebaseAuthException {
+      // Re-throw the Firebase specific exception
+      rethrow;
     }
   }
 

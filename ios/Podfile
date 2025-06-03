@@ -5,14 +5,12 @@
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 project 'Runner', {
-  use_frameworks!
-  use_modular_headers!
   'Debug' => :debug,
   'Profile' => :release,
   'Release' => :release,
 }
 
-
+use_frameworks! :linkage => :static
 
 
 def flutter_root

@@ -1,51 +1,33 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// Screens
 import 'package:ngames/screens/auth/auth_screen.dart';
 import 'package:ngames/screens/home/home_screen.dart';
+import 'package:ngames/screens/easter_egg_screen.dart';
+import 'package:ngames/screens/high_scores/high_score_screen.dart';
+import 'package:ngames/screens/high_scores/select_game_for_high_score_screen.dart';
+import 'package:ngames/screens/messaging/contacts_screen.dart';
+import 'package:ngames/screens/messaging/chat_screen.dart';
+
+// Games
 import 'package:ngames/games/example_game/example_game_screen.dart';
-// import 'package:ngames/services/auth_service.dart'; // Will be used later
+import 'package:ngames/games/wordle/wordle_screen.dart';
+import 'package:ngames/games/snake/snake_screen.dart';
+import 'package:ngames/games/hangman/hangman_screen.dart';
+import 'package:ngames/games/hangman/hangman_category_selection_screen.dart';
 
-// Provider for the GoRouter instance
-// final goRouterProvider = Provider<GoRouter>((ref) {
-//   // final authService = ref.watch(authServiceProvider); // Placeholder for auth service provider
-//   return GoRouter(
-//     initialLocation: '/',
-//     routes: [
-//       GoRoute(
-//         path: '/',
-//         builder: (context, state) => const HomeScreen(),
-//       ),
-//       GoRoute(
-//         path: '/auth',
-//         builder: (context, state) => const AuthScreen(),
-//       ),
-//       GoRoute(
-//         path: '/game/example',
-//         builder: (context, state) => const ExampleGameScreen(),
-//       ),
-//     ],
-//     // redirect: (BuildContext context, GoRouterState state) {
-//     //   // final loggedIn = authService.authStateChanges.map((user) => user != null); // Simplified
-//     //   // final loggingIn = state.matchedLocation == '/auth';
-//     //
-//     //   // This is a simplified redirect logic. You'll need to adapt it based on Riverpod async providers.
-//     //   // if (!loggedIn && !loggingIn) return '/auth';
-//     //   // if (loggedIn && loggingIn) return '/';
-//     //   return null;
-//     // },
-//   );
-// });
+// Services
+import 'package:ngames/services/auth_service.dart'; // For authStateChangesProvider
 
-// Placeholder for auth service provider if you create one for Riverpod
-// final authServiceProvider = Provider<AuthService>((ref) => AuthService());
-
-// For now, a simple router setup without auth redirection.
-// You can uncomment and expand the above when auth is fully integrated.
 final goRouterProvider = Provider<GoRouter>((ref) {
+  final authStateChanges = ref.watch(authStateChangesProvider);
+
   return GoRouter(
-    initialLocation: '/',
-    routes: [
+    initialLocation: '/auth',
+    routes: <RouteBase>[
       GoRoute(
         path: '/',
         pageBuilder:
@@ -57,10 +39,111 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             (context, state) => const MaterialPage(child: AuthScreen()),
       ),
       GoRoute(
+        path: '/easter-egg',
+        pageBuilder:
+            (context, state) => const MaterialPage(child: EasterEggScreen()),
+      ),
+      GoRoute(
+        path: '/high-scores',
+        pageBuilder:
+            (context, state) =>
+                const MaterialPage(child: SelectGameForHighScoreScreen()),
+      ),
+      GoRoute(
+        path: '/high-scores/:gameId',
+        pageBuilder: (context, state) {
+          final gameId = state.pathParameters['gameId']!;
+          String gameName = gameId
+              .replaceAll('-', ' ')
+              .splitMapJoin(
+                ' ',
+                onMatch: (m) => ' ',
+                onNonMatch: (n) => '${n[0].toUpperCase()}${n.substring(1)}',
+              );
+          if (gameId == 'wordle') gameName = 'Wordle';
+          if (gameId == 'snake') gameName = 'Snake';
+          if (gameId == 'hangman') gameName = 'Hangman';
+          return MaterialPage(
+            child: HighScoreScreen(gameId: gameId, gameName: gameName),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/contacts',
+        pageBuilder:
+            (context, state) => const MaterialPage(child: ContactsScreen()),
+      ),
+      GoRoute(
+        path: '/chat/:userId',
+        pageBuilder: (context, state) {
+          final userId = state.pathParameters['userId']!;
+          final receiverName = state.extra as String? ?? 'Chat';
+          return MaterialPage(
+            child: ChatScreen(receiverId: userId, receiverName: receiverName),
+          );
+        },
+      ),
+      GoRoute(
         path: '/game/example',
         pageBuilder:
             (context, state) => const MaterialPage(child: ExampleGameScreen()),
       ),
+      GoRoute(
+        path: '/game/wordle',
+        pageBuilder:
+            (context, state) => const MaterialPage(child: WordleScreen()),
+      ),
+      GoRoute(
+        path: '/game/snake',
+        pageBuilder:
+            (context, state) => const MaterialPage(child: SnakeScreen()),
+      ),
+      GoRoute(
+        path: '/game/hangman/select',
+        pageBuilder:
+            (context, state) =>
+                const MaterialPage(child: HangmanCategorySelectionScreen()),
+      ),
+      GoRoute(
+        path: '/game/hangman',
+        pageBuilder: (context, state) {
+          final category = state.extra as String?;
+          return MaterialPage(child: HangmanScreen(selectedCategory: category));
+        },
+      ),
     ],
+    redirect: (BuildContext context, GoRouterState state) {
+      final loggedIn = authStateChanges.asData?.value != null;
+      final onAuthScreen = state.matchedLocation == '/auth';
+
+      if (!loggedIn && !onAuthScreen) {
+        return '/auth';
+      }
+      if (loggedIn && onAuthScreen) {
+        return '/';
+      }
+      return null;
+    },
+    refreshListenable: GoRouterRefreshStream(
+      authStateChanges.asData?.value != null
+          ? Stream.value(authStateChanges.asData!.value)
+          : const Stream.empty(),
+    ),
   );
 });
+
+class GoRouterRefreshStream extends ChangeNotifier {
+  late final StreamSubscription<dynamic> _subscription;
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
+    _subscription = stream.asBroadcastStream().listen((_) => notifyListeners());
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
