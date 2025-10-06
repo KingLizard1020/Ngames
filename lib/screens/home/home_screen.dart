@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ngames/services/auth_service.dart';
 
-enum _HomeMenuAction { logout, backToLogin }
+enum _HomeMenuAction { logout, backToLogin, highScores, messages }
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -36,10 +36,30 @@ class HomeScreen extends ConsumerWidget {
                 case _HomeMenuAction.backToLogin:
                   context.go('/auth');
                   break;
+                case _HomeMenuAction.highScores:
+                  context.go('/high-scores');
+                  break;
+                case _HomeMenuAction.messages:
+                  context.go('/contacts');
+                  break;
               }
             },
             itemBuilder:
                 (BuildContext context) => <PopupMenuEntry<_HomeMenuAction>>[
+                  const PopupMenuItem<_HomeMenuAction>(
+                    value: _HomeMenuAction.highScores,
+                    child: ListTile(
+                      leading: Icon(Icons.emoji_events),
+                      title: Text('High Scores'),
+                    ),
+                  ),
+                  const PopupMenuItem<_HomeMenuAction>(
+                    value: _HomeMenuAction.messages,
+                    child: ListTile(
+                      leading: Icon(Icons.message),
+                      title: Text('Messages'),
+                    ),
+                  ),
                   const PopupMenuItem<_HomeMenuAction>(
                     value: _HomeMenuAction.logout,
                     child: ListTile(
