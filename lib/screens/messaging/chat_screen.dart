@@ -180,7 +180,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant,
+        color: theme.colorScheme.surfaceContainerHighest,
         boxShadow: [
           BoxShadow(
             offset: const Offset(0, -1),

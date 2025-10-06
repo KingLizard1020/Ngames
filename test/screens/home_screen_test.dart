@@ -47,7 +47,9 @@ void main() {
     ).thenAnswer((_) => Stream.value(mockUser));
     when(
       mockAuthService.signOut(),
-    ).thenAnswer((_) async {}); // Correct for Future<void>
+    ).thenAnswer((_) async {
+      return null;
+    }); // Correct for Future<void>
     // No default stub for spiedGoRouter.go here, will be set in specific tests if needed
   });
 

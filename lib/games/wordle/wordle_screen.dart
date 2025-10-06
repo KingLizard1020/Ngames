@@ -27,7 +27,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
   final int _maxAttempts = 6;
   List<String> _wordList =
       []; // Initialize as empty, will be loaded from assets
-  List<String> _defaultWordList = [
+  final List<String> _defaultWordList = [
     'FLAME',
     'BRICK',
     'CRANE',
@@ -41,7 +41,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
   int _currentAttempt = 0;
   bool _isGameOver = false;
   bool _isGameWon = false;
-  Map<String, LetterStatus> _keyboardLetterStatus = {};
+  final Map<String, LetterStatus> _keyboardLetterStatus = {};
 
   late List<AnimationController> _flipControllers;
   late List<Animation<double>> _flipAnimations;
@@ -172,10 +172,11 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
         // Absolute fallback
         _targetWord = "ERROR"; // Should not happen
         // Potentially disable game or show error message
-        if (mounted)
+        if (mounted) {
           setState(() {
             _isGameOver = true;
           });
+        }
         return;
       }
     }
@@ -358,7 +359,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          backgroundColor: theme.colorScheme.surfaceVariant,
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
           title: Text(
             'How to Play Wordle',
             style: TextStyle(
@@ -473,7 +474,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          backgroundColor: theme.colorScheme.surfaceVariant,
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
           title: Text(
             _isGameWon ? 'Congratulations!' : 'Game Over',
             style: TextStyle(
@@ -533,7 +534,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          backgroundColor: theme.colorScheme.surfaceVariant,
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
           title: Text(
             'Wordle Statistics',
             style: TextStyle(
@@ -631,7 +632,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
               ],
             ),
           ),
@@ -858,7 +859,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
             width: 2,
           ); // Active input border
         } else {
-          tileColor = theme.colorScheme.surfaceVariant.withOpacity(0.5);
+          tileColor = theme.colorScheme.surfaceContainerHighest.withOpacity(0.5);
           textColor = theme.colorScheme.onSurfaceVariant;
           // Keep default border for empty/initial non-active tiles
         }
@@ -894,7 +895,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
     // Front face for flipping animation (before reveal)
     Widget frontFace = Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
         border: Border.all(color: theme.colorScheme.outline.withOpacity(0.5)),
         borderRadius: BorderRadius.circular(8.0),
       ),
@@ -1000,7 +1001,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
             Color keyTextColor = theme.colorScheme.onSurface;
 
             if (isSpecialKey) {
-              keyColor = theme.colorScheme.surfaceVariant.withOpacity(0.7);
+              keyColor = theme.colorScheme.surfaceContainerHighest.withOpacity(0.7);
             } else {
               switch (status) {
                 case LetterStatus.notInWord:
@@ -1016,7 +1017,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
                   keyTextColor = theme.colorScheme.onPrimaryContainer;
                   break;
                 default: // Initial
-                  keyColor = theme.colorScheme.surfaceVariant;
+                  keyColor = theme.colorScheme.surfaceContainerHighest;
               }
             }
 

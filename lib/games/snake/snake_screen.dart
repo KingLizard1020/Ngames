@@ -204,7 +204,7 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          backgroundColor: theme.colorScheme.surfaceVariant,
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
           title: Text(
             'Game Over',
             style: TextStyle(
@@ -280,7 +280,7 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          backgroundColor: theme.colorScheme.surfaceVariant,
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
           title: Text(
             'Game Paused',
             style: TextStyle(
@@ -333,7 +333,7 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          backgroundColor: theme.colorScheme.surfaceVariant,
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
           title: Text(
             'How to Play Snake',
             style: TextStyle(
@@ -434,22 +434,26 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
                       if (!_isPlaying || _isPaused) return;
                       if (details.primaryVelocity == null) return;
                       if (details.primaryVelocity! < -200) {
-                        if (_direction != Direction.down)
+                        if (_direction != Direction.down) {
                           _direction = Direction.up;
+                        }
                       } else if (details.primaryVelocity! > 200) {
-                        if (_direction != Direction.up)
+                        if (_direction != Direction.up) {
                           _direction = Direction.down;
+                        }
                       }
                     },
                     onHorizontalDragEnd: (details) {
                       if (!_isPlaying || _isPaused) return;
                       if (details.primaryVelocity == null) return;
                       if (details.primaryVelocity! < -200) {
-                        if (_direction != Direction.right)
+                        if (_direction != Direction.right) {
                           _direction = Direction.left;
+                        }
                       } else if (details.primaryVelocity! > 200) {
-                        if (_direction != Direction.left)
+                        if (_direction != Direction.left) {
                           _direction = Direction.right;
+                        }
                       }
                     },
                     child: Container(
@@ -460,7 +464,7 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
                           color: theme.colorScheme.outline.withOpacity(0.5),
                           width: 2,
                         ),
-                        color: theme.colorScheme.surfaceVariant.withOpacity(
+                        color: theme.colorScheme.surfaceContainerHighest.withOpacity(
                           0.3,
                         ),
                         borderRadius: BorderRadius.circular(8),
@@ -565,17 +569,21 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
                 : () {
                   // Prevent reversing direction directly
                   if (buttonDirection == Direction.up &&
-                      _direction == Direction.down)
+                      _direction == Direction.down) {
                     return;
+                  }
                   if (buttonDirection == Direction.down &&
-                      _direction == Direction.up)
+                      _direction == Direction.up) {
                     return;
+                  }
                   if (buttonDirection == Direction.left &&
-                      _direction == Direction.right)
+                      _direction == Direction.right) {
                     return;
+                  }
                   if (buttonDirection == Direction.right &&
-                      _direction == Direction.left)
+                      _direction == Direction.left) {
                     return;
+                  }
                   _direction = buttonDirection;
                 },
         child: Icon(icon, size: 28),

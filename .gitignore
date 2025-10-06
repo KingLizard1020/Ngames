@@ -2,3 +2,4 @@ build/
 /build/
 /ios/build
 .dart_tool/
+.log

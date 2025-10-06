@@ -19,7 +19,7 @@ class SettingsDialog extends ConsumerWidget {
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      backgroundColor: theme.colorScheme.surfaceVariant,
+      backgroundColor: theme.colorScheme.surfaceContainerHighest,
       title: Text(
         'Settings',
         style: TextStyle(
@@ -58,7 +58,7 @@ class SettingsDialog extends ConsumerWidget {
                 activeColor: theme.colorScheme.primary,
                 contentPadding: EdgeInsets.zero,
               );
-            }).toList(),
+            }),
             const SizedBox(height: 20),
             Text(
               'Snake Game Difficulty',
@@ -85,7 +85,7 @@ class SettingsDialog extends ConsumerWidget {
                 activeColor: theme.colorScheme.primary,
                 contentPadding: EdgeInsets.zero,
               );
-            }).toList(),
+            }),
           ],
         ),
       ),

@@ -58,7 +58,7 @@ class HighScoreScreen extends ConsumerWidget {
                   vertical: 6.0,
                   horizontal: 8.0,
                 ),
-                color: theme.colorScheme.surfaceVariant,
+                color: theme.colorScheme.surfaceContainerHighest,
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: theme.colorScheme.primary,

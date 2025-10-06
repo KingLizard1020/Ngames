@@ -162,7 +162,7 @@ class _HangmanScreenState extends ConsumerState<HangmanScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          backgroundColor: theme.colorScheme.surfaceVariant,
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
           title: Text(
             _isGameWon ? 'Congratulations!' : 'Game Over',
             style: TextStyle(
@@ -219,7 +219,7 @@ class _HangmanScreenState extends ConsumerState<HangmanScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          backgroundColor: theme.colorScheme.surfaceVariant,
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
           title: Text(
             'How to Play Hangman',
             style: TextStyle(
