@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ngames/services/auth_service.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ngames/core/utils/logger.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -77,11 +78,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final authState = ref.watch(authStateChangesProvider);
+
+    AppLogger.debug(
+      'Building - isLoading: ${authState.isLoading}, hasError: ${authState.hasError}, hasValue: ${authState.hasValue}',
+      'AUTH',
+    );
+
     if (authState.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: theme.colorScheme.surface,
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
     if (authState.hasError) {
       return Scaffold(
+        backgroundColor: theme.colorScheme.surface,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -103,7 +114,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         ),
       );
     }
+
+    AppLogger.debug('Rendering main auth form', 'AUTH');
+
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),

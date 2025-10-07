@@ -3,8 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // Import Riverpod
 import 'package:go_router/go_router.dart';
 import 'package:ngames/widgets/settings_dialog.dart';
-import 'package:ngames/services/high_score_service.dart'; // Import HighScoreService
-import 'package:ngames/models/game_high_score_model.dart'; // Import GameHighScore model
+import 'package:ngames/shared/widgets/game_over_dialog.dart';
+import 'package:ngames/core/game/base_game_state.dart';
+import 'package:ngames/core/game/base_game.dart';
+import 'package:ngames/core/utils/logger.dart';
+import 'package:ngames/services/auth_service.dart';
+import 'package:ngames/services/high_score_service.dart';
+import 'package:ngames/models/game_high_score_model.dart';
 
 class HangmanScreen extends ConsumerStatefulWidget {
   // Changed to ConsumerStatefulWidget
@@ -16,8 +21,8 @@ class HangmanScreen extends ConsumerStatefulWidget {
   ConsumerState<HangmanScreen> createState() => _HangmanScreenState(); // Changed to ConsumerState
 }
 
-class _HangmanScreenState extends ConsumerState<HangmanScreen> {
-  // Change to ConsumerState
+class _HangmanScreenState extends BaseHighScoreGameState<HangmanScreen>
+    with LivesGame {
   final Map<String, List<String>> _wordCategories = {
     'Animals': ['TIGER', 'LION', 'BEAR', 'ZEBRA', 'MONKEY', 'ELEPHANT'],
     'Fruits': ['APPLE', 'BANANA', 'ORANGE', 'GRAPE', 'MANGO', 'PEACH'],
@@ -50,11 +55,98 @@ class _HangmanScreenState extends ConsumerState<HangmanScreen> {
   bool _isGameWon = false;
   int _hintsRemaining = 2;
   final int _initialHints = 2;
+  bool _isLoadingState = true;
+
+  // BaseGame interface implementation
+  @override
+  String get gameId => 'hangman';
+
+  @override
+  String get gameName => 'Hangman';
+
+  @override
+  bool get isGameOver => _isGameOver;
+
+  @override
+  bool get isGameWon => _isGameWon;
+
+  @override
+  int get currentScore =>
+      _isGameWon ? (_maxIncorrectGuesses - _incorrectGuesses) : 0;
+
+  // LivesGame mixin implementation
+  @override
+  int get maxLives => _maxIncorrectGuesses;
+
+  @override
+  int get currentLives => _maxIncorrectGuesses - _incorrectGuesses;
+
+  @override
+  void loseLife() {
+    // Not used in current implementation, game logic is in _guessLetter
+  }
+
+  @override
+  bool get isOutOfLives => _incorrectGuesses >= _maxIncorrectGuesses;
 
   @override
   void initState() {
     super.initState();
+    _loadGameStateAndInitialize();
+  }
+
+  // BaseGameState abstract methods implementation
+  @override
+  Map<String, dynamic> getGameStateData() {
+    return {
+      'targetWord': _targetWord,
+      'currentCategory': _currentCategory,
+      'guessedLetters': _guessedLetters.toList(),
+      'incorrectGuesses': _incorrectGuesses,
+      'isGameOver': _isGameOver,
+      'isGameWon': _isGameWon,
+      'hintsRemaining': _hintsRemaining,
+    };
+  }
+
+  @override
+  void restoreGameStateData(Map<String, dynamic> state) {
+    setState(() {
+      _targetWord = state['targetWord'] as String;
+      _currentCategory = state['currentCategory'] as String;
+      _guessedLetters = Set<String>.from(state['guessedLetters'] as List);
+      _incorrectGuesses = state['incorrectGuesses'] as int;
+      _isGameOver = state['isGameOver'] as bool;
+      _isGameWon = state['isGameWon'] as bool;
+      _hintsRemaining = state['hintsRemaining'] as int;
+    });
+  }
+
+  @override
+  Future<void> initializeGame() async {
+    // Try to load saved state
+    final loaded = await loadGameState();
+    if (!loaded) {
+      _initializeGame();
+    }
+  }
+
+  @override
+  void resetGame() {
+    clearGameState();
     _initializeGame();
+  }
+
+  Future<void> _loadGameStateAndInitialize() async {
+    final bool loadedState = await loadGameState();
+    if (!loadedState) {
+      _initializeGame();
+    }
+    if (mounted) {
+      setState(() {
+        _isLoadingState = false;
+      });
+    }
   }
 
   void _initializeGame() {
@@ -80,6 +172,7 @@ class _HangmanScreenState extends ConsumerState<HangmanScreen> {
     _isGameOver = false;
     _isGameWon = false;
     _hintsRemaining = _initialHints;
+    clearGameState(); // Clear saved state when starting new game
     setState(() {});
   }
 
@@ -96,11 +189,7 @@ class _HangmanScreenState extends ConsumerState<HangmanScreen> {
   }
 
   void _guessLetter(String letter) async {
-    // Make async for high score submission
     if (_isGameOver || _guessedLetters.contains(letter)) return;
-
-    bool gameJustEnded = false;
-    bool wonThisTurn = false;
 
     setState(() {
       _guessedLetters.add(letter);
@@ -115,96 +204,79 @@ class _HangmanScreenState extends ConsumerState<HangmanScreen> {
         if (won) {
           _isGameWon = true;
           _isGameOver = true;
-          gameJustEnded = true;
-          wonThisTurn = true;
         }
       } else {
         _incorrectGuesses++;
         if (_incorrectGuesses >= _maxIncorrectGuesses) {
           _isGameOver = true;
           _isGameWon = false;
-          gameJustEnded = true;
         }
       }
     });
 
-    if (gameJustEnded && _isGameWon) {
-      final highScoreService = ref.read(highScoreServiceProvider);
-      final userId = highScoreService.getCurrentUserId();
-      final userName = highScoreService.getCurrentUserName();
-
-      if (userId != null && userName != null) {
-        final hangmanHighScore = GameHighScore(
-          userId: userId,
-          userName: userName,
-          gameId: 'hangman',
-          score: _maxIncorrectGuesses - _incorrectGuesses,
-          attempts: _incorrectGuesses,
-          timestamp: DateTime.now(),
-          scoreType: 'attempts_inverse',
-        );
-        await highScoreService.addHighScore(hangmanHighScore);
+    // Handle game state after setState
+    if (_isGameOver) {
+      if (_isGameWon) {
+        await onGameWon();
+      } else {
+        await onGameLost();
       }
-    }
-
-    if (gameJustEnded) {
       _showGameOverDialog();
+    } else {
+      // Save game state after each guess
+      await saveGameState();
+    }
+  }
+
+  // Override saveHighScore to include attempts for Hangman
+  @override
+  Future<void> saveHighScore() async {
+    try {
+      final service = ref.read(highScoreServiceProvider);
+      final user = ref.read(firebaseAuthProvider).currentUser;
+      if (user == null) {
+        AppLogger.warning('No user logged in to save high score', 'GAME');
+        return;
+      }
+
+      final highScore = GameHighScore(
+        gameId: gameId,
+        userId: user.uid,
+        userName: user.email ?? 'Anonymous',
+        score: _maxIncorrectGuesses - _incorrectGuesses,
+        attempts: _incorrectGuesses,
+        timestamp: DateTime.now(),
+        scoreType:
+            'attempts_inverse', // Higher score is better (fewer incorrect guesses)
+      );
+      await service.addHighScore(highScore);
+      AppLogger.info(
+        'High score saved: ${_maxIncorrectGuesses - _incorrectGuesses} points for $gameId',
+        'GAME',
+      );
+    } catch (e, st) {
+      AppLogger.error('Failed to save high score for $gameId', e, st, 'GAME');
     }
   }
 
   void _showGameOverDialog() {
-    final theme = Theme.of(context);
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          backgroundColor: theme.colorScheme.surfaceContainerHighest,
-          title: Text(
-            _isGameWon ? 'Congratulations!' : 'Game Over',
-            style: TextStyle(
-              color:
-                  _isGameWon
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.error,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: Text(
-              _isGameWon
-                  ? 'You guessed the word: $_targetWord'
-                  : 'The word was: $_targetWord',
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.secondary,
-              ),
-              child: const Text('Main Menu'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(); // Close this dialog
-                GoRouter.of(
-                  context,
-                ).go('/'); // Use screen's context to navigate
-              },
-            ),
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.primary,
-              ),
-              child: const Text('Play Again'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                _initializeGame();
-              },
-            ),
-          ],
+        return GameOverDialog(
+          isWon: _isGameWon,
+          message: _isGameWon ? 'Congratulations!' : 'Game Over',
+          subtitle: 'The word was: $_targetWord',
+          showConfetti: _isGameWon,
+          onPlayAgain: () {
+            Navigator.of(dialogContext).pop();
+            resetGame();
+          },
+          onMainMenu: () {
+            Navigator.of(dialogContext).pop();
+            context.go('/');
+          },
         );
       },
     );
@@ -288,8 +360,25 @@ class _HangmanScreenState extends ConsumerState<HangmanScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // Show loading screen while loading saved state
+    if (_isLoadingState) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Hangman'),
+          backgroundColor: theme.colorScheme.primaryContainer,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/'),
+          tooltip: 'Back to Home',
+        ),
         title: Text('Hangman - $_currentCategory'),
         backgroundColor: theme.colorScheme.primaryContainer,
         actions: [

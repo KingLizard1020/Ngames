@@ -20,6 +20,16 @@ class SelectGameForHighScoreScreen extends StatelessWidget {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/');
+            }
+          },
+        ),
         title: const Text('Select Game for High Scores'),
         backgroundColor: theme.colorScheme.primaryContainer,
       ),

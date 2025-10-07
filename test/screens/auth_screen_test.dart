@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -9,7 +8,8 @@ import 'package:ngames/screens/auth/auth_screen.dart';
 import 'package:ngames/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide EmailAuthProvider;
 
-part 'auth_screen_test.mocks.dart';
+// Replaced part directive with import to avoid part_of issues.
+import 'auth_screen_test.mocks.dart';
 
 @GenerateMocks([AuthService, User])
 void main() {
@@ -94,7 +94,6 @@ void main() {
       WidgetTester tester,
     ) async {
       final testRouter = setupTestRouter(const AuthScreen());
-      final spiedTestRouter = spy(testRouter); // Spy on the router instance
 
       when(mockAuthService.signInWithEmailAndPassword(any, any)).thenAnswer((
         _,
@@ -103,15 +102,9 @@ void main() {
         return mockUser;
       });
       // Stub the go method on the spied router. Since go returns void:
-      when(
-        spiedTestRouter.go(any),
-      ).thenAnswer((_) {}); // Corrected: non-async, returns nothing
 
       await tester.pumpWidget(
-        createTestableWidget(
-          child: const AuthScreen(),
-          router: spiedTestRouter,
-        ),
+        createTestableWidget(child: const AuthScreen(), router: testRouter),
       );
 
       await tester.enterText(
@@ -139,7 +132,6 @@ void main() {
       WidgetTester tester,
     ) async {
       final testRouter = setupTestRouter(const AuthScreen());
-      final spiedTestRouter = spy(testRouter);
 
       final exception = FirebaseAuthException(
         code: 'user-not-found',
@@ -148,13 +140,9 @@ void main() {
       when(
         mockAuthService.signInWithEmailAndPassword(any, any),
       ).thenThrow(exception);
-      when(spiedTestRouter.go(any)).thenAnswer((_) {}); // Corrected
 
       await tester.pumpWidget(
-        createTestableWidget(
-          child: const AuthScreen(),
-          router: spiedTestRouter,
-        ),
+        createTestableWidget(child: const AuthScreen(), router: testRouter),
       );
 
       await tester.enterText(
@@ -180,7 +168,6 @@ void main() {
       WidgetTester tester,
     ) async {
       final testRouter = setupTestRouter(const AuthScreen());
-      final spiedTestRouter = spy(testRouter);
 
       final exception = FirebaseAuthException(
         code: 'email-already-in-use',
@@ -189,14 +176,14 @@ void main() {
       when(
         mockAuthService.createUserWithEmailAndPassword(any, any),
       ).thenThrow(exception);
-      when(spiedTestRouter.go(any)).thenAnswer((_) {}); // Corrected
 
       await tester.pumpWidget(
-        createTestableWidget(
-          child: const AuthScreen(),
-          router: spiedTestRouter,
-        ),
+        createTestableWidget(child: const AuthScreen(), router: testRouter),
       );
+
+      // First, tap the toggle to switch to registration mode
+      await tester.tap(find.text('Need an account? Register'));
+      await tester.pumpAndSettle();
 
       await tester.enterText(
         find.widgetWithText(TextField, 'Email'),
@@ -219,19 +206,13 @@ void main() {
 
     testWidgets('navigates on successful sign-in', (WidgetTester tester) async {
       final testRouter = setupTestRouter(const AuthScreen());
-      final spiedTestRouter = spy(testRouter);
 
       when(
         mockAuthService.signInWithEmailAndPassword(any, any),
       ).thenAnswer((_) async => mockUser);
-      // Stub the specific navigation call we expect
-      when(spiedTestRouter.go('/')).thenAnswer((_) {}); // Corrected
 
       await tester.pumpWidget(
-        createTestableWidget(
-          child: const AuthScreen(),
-          router: spiedTestRouter,
-        ),
+        createTestableWidget(child: const AuthScreen(), router: testRouter),
       );
 
       await tester.enterText(
@@ -245,25 +226,20 @@ void main() {
       await tester.tap(find.widgetWithText(ElevatedButton, 'Sign In'));
       await tester.pumpAndSettle();
 
-      verify(spiedTestRouter.go('/')).called(1);
+      expect(find.text('Mock Home Screen'), findsOneWidget);
     });
 
     testWidgets('navigates on successful registration', (
       WidgetTester tester,
     ) async {
       final testRouter = setupTestRouter(const AuthScreen());
-      final spiedTestRouter = spy(testRouter);
 
       when(
         mockAuthService.createUserWithEmailAndPassword(any, any),
       ).thenAnswer((_) async => mockUser);
-      when(spiedTestRouter.go('/')).thenAnswer((_) {}); // Corrected
 
       await tester.pumpWidget(
-        createTestableWidget(
-          child: const AuthScreen(),
-          router: spiedTestRouter,
-        ),
+        createTestableWidget(child: const AuthScreen(), router: testRouter),
       );
 
       await tester.enterText(
@@ -277,7 +253,7 @@ void main() {
       await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
       await tester.pumpAndSettle();
 
-      verify(spiedTestRouter.go('/')).called(1);
+      expect(find.text('Mock Home Screen'), findsOneWidget);
     });
   });
 }

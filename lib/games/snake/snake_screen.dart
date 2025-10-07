@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ngames/widgets/settings_dialog.dart';
+import 'package:ngames/widgets/confetti_overlay.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ngames/services/game_settings_service.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -34,6 +35,7 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen>
   bool _isPlaying = false;
   bool _isPaused = false; // New state for pause
   Ticker? _ticker;
+  Duration _lastUpdate = Duration.zero; // Track last update time
   int _score = 0;
   int _highScore = 0; // New state for high score
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -101,13 +103,14 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen>
       _isPlaying = true;
       _isPaused = false;
       _showGameOverEffect = false;
+      _lastUpdate = Duration.zero; // Reset the timer
     });
     _ticker?.dispose();
     _ticker = createTicker((elapsed) {
       if (_isPlaying && !_isPaused) {
         // Move snake at intervals based on gameSpeed
-        final ms = gameSpeed.inMilliseconds;
-        if (elapsed.inMilliseconds % ms < 16) {
+        if (elapsed - _lastUpdate >= gameSpeed) {
+          _lastUpdate = elapsed;
           _moveSnake();
         }
       }
@@ -227,76 +230,84 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen>
     });
 
     final theme = Theme.of(context);
+    final bool beatHighScore = newHighScoreAchieved;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          backgroundColor: theme.colorScheme.surfaceContainerHighest,
-          title: Text(
-            'Game Over',
-            style: TextStyle(
-              color: theme.colorScheme.onErrorContainer,
-              fontWeight: FontWeight.bold,
+        return ConfettiOverlay(
+          showConfetti: beatHighScore,
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your score: $currentScore',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 18,
-                ),
+            backgroundColor: theme.colorScheme.surfaceContainerHighest,
+            title: Text(
+              beatHighScore ? 'New High Score!' : 'Game Over',
+              style: TextStyle(
+                color:
+                    beatHighScore
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onErrorContainer,
+                fontWeight: FontWeight.bold,
               ),
-              const SizedBox(height: 8),
-              Text(
-                'High Score: $_highScore',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 16,
-                ),
-              ),
-              if (_showGameOverEffect)
-                Padding(
-                  padding: const EdgeInsets.only(top: 16.0),
-                  child: Center(
-                    child: Icon(
-                      Icons.flash_on,
-                      color: theme.colorScheme.error,
-                      size: 48,
-                    ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your score: $currentScore',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 18,
                   ),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  'High Score: $_highScore',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 16,
+                  ),
+                ),
+                if (_showGameOverEffect)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16.0),
+                    child: Center(
+                      child: Icon(
+                        Icons.flash_on,
+                        color: theme.colorScheme.error,
+                        size: 48,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            actions: <Widget>[
+              TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: theme.colorScheme.secondary,
+                ),
+                child: const Text('Main Menu'),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  GoRouter.of(context).go('/');
+                },
+              ),
+              TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: theme.colorScheme.primary,
+                ),
+                child: const Text('Play Again'),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  _startCountdown();
+                },
+              ),
             ],
           ),
-          actions: <Widget>[
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.secondary,
-              ),
-              child: const Text('Main Menu'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                GoRouter.of(context).go('/');
-              },
-            ),
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.primary,
-              ),
-              child: const Text('Play Again'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                _startCountdown();
-              },
-            ),
-          ],
         );
       },
     );

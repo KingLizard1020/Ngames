@@ -46,6 +46,7 @@ dependencies:
   mockito: ^5.4.6 # Added mockito
   build_runner: ^2.4.11 # Added build_runner
   audioplayers: ^6.0.0 # Or latest version
+  confetti: ^0.7.0 # Confetti animations for wins
 
 dev_dependencies:
   flutter_test:

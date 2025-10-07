@@ -15,10 +15,14 @@ class HomeScreen extends ConsumerWidget {
     final authState = ref.watch(authStateChangesProvider);
 
     if (authState.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: theme.colorScheme.surface,
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
     if (authState.hasError) {
       return Scaffold(
+        backgroundColor: theme.colorScheme.surface,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -42,6 +46,7 @@ class HomeScreen extends ConsumerWidget {
     }
 
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.sentiment_very_satisfied_outlined),
@@ -53,6 +58,11 @@ class HomeScreen extends ConsumerWidget {
         title: const Text('NGames Home'),
         backgroundColor: theme.colorScheme.primaryContainer,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.leaderboard_rounded),
+            onPressed: () => context.go('/high-scores'),
+            tooltip: 'View High Scores',
+          ),
           PopupMenuButton<_HomeMenuAction>(
             icon: const Icon(Icons.account_circle_outlined),
             tooltip: "Account Options",

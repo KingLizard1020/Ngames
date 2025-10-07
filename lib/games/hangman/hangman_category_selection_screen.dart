@@ -52,6 +52,11 @@ class HangmanCategorySelectionScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/'),
+          tooltip: 'Back to Home',
+        ),
         title: const Text('Choose a Category'),
         backgroundColor: theme.colorScheme.primaryContainer,
       ),
