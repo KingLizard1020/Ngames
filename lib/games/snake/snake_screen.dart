@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/scheduler.dart';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,7 +21,8 @@ class SnakeScreen extends ConsumerStatefulWidget {
   ConsumerState<SnakeScreen> createState() => _SnakeScreenState(); // Change to ConsumerState
 }
 
-class _SnakeScreenState extends ConsumerState<SnakeScreen> {
+class _SnakeScreenState extends ConsumerState<SnakeScreen>
+    with SingleTickerProviderStateMixin {
   // Change to ConsumerState
   static const int _gridSize = 20;
   static const String _highScoreKey =
@@ -31,27 +33,29 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
   Direction _direction = Direction.right;
   bool _isPlaying = false;
   bool _isPaused = false; // New state for pause
-  Timer? _timer;
+  Ticker? _ticker;
   int _score = 0;
   int _highScore = 0; // New state for high score
-  final AudioPlayer _audioPlayer =
-      AudioPlayer(); // Create an AudioPlayer instance
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  final AudioPlayer _eatPlayer = AudioPlayer();
+
+  int _countdown = 3;
+  bool _showGameOverEffect = false;
 
   @override
   void initState() {
     super.initState();
-    _loadHighScore(); // Load high score on init
-    // _startGame() will be called after difficulty is available or with default
-    // No, _startGame should be called here, and it will use the current difficulty from provider
+    _loadHighScore();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _startGame();
+      _startCountdown();
     });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
-    _audioPlayer.dispose(); // Dispose the audio player
+    _ticker?.dispose();
+    _audioPlayer.dispose();
+    _eatPlayer.dispose();
     super.dispose();
   }
 
@@ -67,10 +71,26 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
     await prefs.setInt(_highScoreKey, _highScore);
   }
 
+  void _startCountdown() {
+    setState(() {
+      _countdown = 3;
+      _isPlaying = false;
+      _isPaused = false;
+    });
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_countdown > 1) {
+        setState(() {
+          _countdown--;
+        });
+      } else {
+        timer.cancel();
+        _startGame();
+      }
+    });
+  }
+
   void _startGame() {
-    final snakeDifficulty = ref.read(
-      snakeDifficultyNotifierProvider.notifier,
-    ); // Read notifier
+    final snakeDifficulty = ref.read(snakeDifficultyNotifierProvider.notifier);
     final gameSpeed = snakeDifficulty.currentSpeed;
 
     setState(() {
@@ -80,14 +100,19 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
       _score = 0;
       _isPlaying = true;
       _isPaused = false;
-      _timer?.cancel();
-      _timer = Timer.periodic(gameSpeed, (Timer timer) {
-        // Use gameSpeed from provider
-        if (_isPlaying && !_isPaused) {
+      _showGameOverEffect = false;
+    });
+    _ticker?.dispose();
+    _ticker = createTicker((elapsed) {
+      if (_isPlaying && !_isPaused) {
+        // Move snake at intervals based on gameSpeed
+        final ms = gameSpeed.inMilliseconds;
+        if (elapsed.inMilliseconds % ms < 16) {
           _moveSnake();
         }
-      });
+      }
     });
+    _ticker?.start();
   }
 
   void _generateFood() {
@@ -145,9 +170,10 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
 
       if (newHead == _food) {
         _score++;
-        _generateFood(); // Snake grows, new food
+        _generateFood();
+        _eatPlayer.play(AssetSource('audio/crunch.mp3'));
       } else {
-        _snake.removeLast(); // Remove tail if no food eaten
+        _snake.removeLast();
       }
     });
   }
@@ -190,10 +216,15 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
     setState(() {
       _isPlaying = false;
       _isPaused = false;
-      _timer?.cancel();
-      // _highScore already updated if necessary
+      _ticker?.stop();
+      _showGameOverEffect = true;
     });
-    _audioPlayer.play(AssetSource('audio/game_over.mp3'));
+    _audioPlayer.play(AssetSource('audio/death.mp3'));
+    Future.delayed(const Duration(milliseconds: 700), () {
+      setState(() {
+        _showGameOverEffect = false;
+      });
+    });
 
     final theme = Theme.of(context);
     showDialog(
@@ -231,6 +262,17 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
                   fontSize: 16,
                 ),
               ),
+              if (_showGameOverEffect)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: Center(
+                    child: Icon(
+                      Icons.flash_on,
+                      color: theme.colorScheme.error,
+                      size: 48,
+                    ),
+                  ),
+                ),
             ],
           ),
           actions: <Widget>[
@@ -251,7 +293,7 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
               child: const Text('Play Again'),
               onPressed: () {
                 Navigator.of(dialogContext).pop();
-                _startGame();
+                _startCountdown();
               },
             ),
           ],
@@ -299,7 +341,7 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
               ),
               child: const Text('Quit to Menu'),
               onPressed: () {
-                _timer?.cancel();
+                _ticker?.stop();
                 _isPlaying = false;
                 _isPaused = false;
                 Navigator.of(dialogContext).pop();
@@ -421,69 +463,88 @@ class _SnakeScreenState extends ConsumerState<SnakeScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: <Widget>[
-          Expanded(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: GestureDetector(
-                    onVerticalDragEnd: (details) {
-                      if (!_isPlaying || _isPaused) return;
-                      if (details.primaryVelocity == null) return;
-                      if (details.primaryVelocity! < -200) {
-                        if (_direction != Direction.down) {
-                          _direction = Direction.up;
-                        }
-                      } else if (details.primaryVelocity! > 200) {
-                        if (_direction != Direction.up) {
-                          _direction = Direction.down;
-                        }
-                      }
-                    },
-                    onHorizontalDragEnd: (details) {
-                      if (!_isPlaying || _isPaused) return;
-                      if (details.primaryVelocity == null) return;
-                      if (details.primaryVelocity! < -200) {
-                        if (_direction != Direction.right) {
-                          _direction = Direction.left;
-                        }
-                      } else if (details.primaryVelocity! > 200) {
-                        if (_direction != Direction.left) {
-                          _direction = Direction.right;
-                        }
-                      }
-                    },
-                    child: Container(
-                      width: gameBoardSize,
-                      height: gameBoardSize,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: theme.colorScheme.outline.withOpacity(0.5),
-                          width: 2,
-                        ),
-                        color: theme.colorScheme.surfaceContainerHighest.withOpacity(
-                          0.3,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: CustomPaint(
-                        painter: SnakePainter(
-                          _snake,
-                          _food,
-                          cellSize,
-                          theme.colorScheme,
+      body: Stack(
+        children: [
+          Column(
+            children: <Widget>[
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: GestureDetector(
+                        onVerticalDragEnd: (details) {
+                          if (!_isPlaying || _isPaused) return;
+                          if (details.primaryVelocity == null) return;
+                          if (details.primaryVelocity! < -200) {
+                            if (_direction != Direction.down) {
+                              _direction = Direction.up;
+                            }
+                          } else if (details.primaryVelocity! > 200) {
+                            if (_direction != Direction.up) {
+                              _direction = Direction.down;
+                            }
+                          }
+                        },
+                        onHorizontalDragEnd: (details) {
+                          if (!_isPlaying || _isPaused) return;
+                          if (details.primaryVelocity == null) return;
+                          if (details.primaryVelocity! < -200) {
+                            if (_direction != Direction.right) {
+                              _direction = Direction.left;
+                            }
+                          } else if (details.primaryVelocity! > 200) {
+                            if (_direction != Direction.left) {
+                              _direction = Direction.right;
+                            }
+                          }
+                        },
+                        child: Container(
+                          width: gameBoardSize,
+                          height: gameBoardSize,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: theme.colorScheme.outline.withOpacity(0.5),
+                              width: 2,
+                            ),
+                            color: theme.colorScheme.surfaceContainerHighest
+                                .withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: CustomPaint(
+                            painter: SnakePainter(
+                              _snake,
+                              _food,
+                              cellSize,
+                              theme.colorScheme,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
+              _buildControls(theme),
+            ],
           ),
-          _buildControls(theme),
+          if (_countdown > 0 && !_isPlaying)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.5),
+                child: Center(
+                  child: Text(
+                    '$_countdown',
+                    style: theme.textTheme.displayLarge?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 96,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

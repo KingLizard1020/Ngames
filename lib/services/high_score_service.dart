@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ngames/models/game_high_score_model.dart';
 import 'package:ngames/services/auth_service.dart'; // To get current user info
 

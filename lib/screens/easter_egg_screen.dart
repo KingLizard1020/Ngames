@@ -21,18 +21,7 @@ class _EasterEggScreenState extends State<EasterEggScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
-
-    // Generate initial particles
-    for (int i = 0; i < 50; i++) {
-      _particles.add(
-        _createParticle(
-          Size(
-            MediaQuery.of(context).size.width,
-            MediaQuery.of(context).size.height,
-          ),
-        ),
-      );
-    }
+    // Do not use MediaQuery here!
   }
 
   Particle _createParticle(Size canvasSize) {
@@ -57,10 +46,8 @@ class _EasterEggScreenState extends State<EasterEggScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Re-initialize particles if screen size is available and changes (e.g. orientation)
-    // This is a simplified way; a more robust way would be to handle layout changes.
     final size = MediaQuery.of(context).size;
-    if (size.width > 0 && size.height > 0) {
+    if (_particles.isEmpty && size.width > 0 && size.height > 0) {
       _particles = List.generate(50, (_) => _createParticle(size));
     }
   }
