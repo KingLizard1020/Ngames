@@ -1,5 +1,5 @@
 name: ngames
-description: "A new Flutter project."
+description: "A game for my girlfriend Neely"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -46,10 +46,18 @@ dependencies:
   mockito: ^5.4.6 # Added mockito
   build_runner: ^2.4.11 # Added build_runner
   audioplayers: ^6.0.0 # Or latest version
+  confetti: ^0.7.0 # Confetti animations for wins
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.13.1
+
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/app_icon.png"
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

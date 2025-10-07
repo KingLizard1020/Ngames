@@ -5,10 +5,14 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // Import Riverpod
 import 'package:ngames/widgets/settings_dialog.dart';
+import 'package:ngames/shared/widgets/game_over_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ngames/games/wordle/wordle_stats_model.dart';
-import 'package:ngames/services/high_score_service.dart'; // Import HighScoreService
-import 'package:ngames/models/game_high_score_model.dart'; // Import GameHighScore model
+import 'package:ngames/core/game/base_game_state.dart';
+import 'package:ngames/core/utils/logger.dart';
+import 'package:ngames/services/auth_service.dart';
+import 'package:ngames/services/high_score_service.dart';
+import 'package:ngames/models/game_high_score_model.dart';
 
 // Enum to represent the status of each letter in a guess
 enum LetterStatus { initial, notInWord, inWord, correctPosition }
@@ -21,13 +25,13 @@ class WordleScreen extends ConsumerStatefulWidget {
   ConsumerState<WordleScreen> createState() => _WordleScreenState(); // Changed to ConsumerState
 }
 
-class _WordleScreenState extends ConsumerState<WordleScreen>
+class _WordleScreenState extends BaseHighScoreGameState<WordleScreen>
     with TickerProviderStateMixin {
   final int _wordLength = 5;
   final int _maxAttempts = 6;
   List<String> _wordList =
       []; // Initialize as empty, will be loaded from assets
-  List<String> _defaultWordList = [
+  final List<String> _defaultWordList = [
     'FLAME',
     'BRICK',
     'CRANE',
@@ -41,7 +45,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
   int _currentAttempt = 0;
   bool _isGameOver = false;
   bool _isGameWon = false;
-  Map<String, LetterStatus> _keyboardLetterStatus = {};
+  final Map<String, LetterStatus> _keyboardLetterStatus = {};
 
   late List<AnimationController> _flipControllers;
   late List<Animation<double>> _flipAnimations;
@@ -58,6 +62,22 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
   bool _isLoadingWords =
       true; // To show loading indicator while words are loaded
 
+  // BaseGame interface implementation
+  @override
+  String get gameId => 'wordle';
+
+  @override
+  String get gameName => 'Wordle';
+
+  @override
+  bool get isGameOver => _isGameOver;
+
+  @override
+  bool get isGameWon => _isGameWon;
+
+  @override
+  int get currentScore => _isGameWon ? (7 - _currentAttempt) : 0;
+
   @override
   void initState() {
     super.initState();
@@ -65,10 +85,81 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
     _loadAssetsAndInitializeGame();
   }
 
+  // BaseGameState abstract methods implementation
+  @override
+  Map<String, dynamic> getGameStateData() {
+    return {
+      'targetWord': _targetWord,
+      'currentAttempt': _currentAttempt,
+      'isGameOver': _isGameOver,
+      'isGameWon': _isGameWon,
+      'guesses':
+          _guesses.map((row) {
+            return row.map((letterMap) {
+              final entry = letterMap.entries.first;
+              return {'letter': entry.key, 'status': entry.value.index};
+            }).toList();
+          }).toList(),
+      'currentGuess': _currentGuess,
+      'keyboardStatus': _keyboardLetterStatus.map(
+        (key, value) => MapEntry(key, value.index),
+      ),
+    };
+  }
+
+  @override
+  void restoreGameStateData(Map<String, dynamic> state) {
+    setState(() {
+      _targetWord = state['targetWord'] as String;
+      _currentAttempt = state['currentAttempt'] as int;
+      _isGameOver = state['isGameOver'] as bool;
+      _isGameWon = state['isGameWon'] as bool;
+      _currentGuess = List<String>.from(state['currentGuess'] as List);
+
+      _guesses =
+          (state['guesses'] as List).map((row) {
+            return (row as List).map((letterMap) {
+              final letter = letterMap['letter'] as String;
+              final statusIndex = letterMap['status'] as int;
+              return {letter: LetterStatus.values[statusIndex]};
+            }).toList();
+          }).toList();
+
+      _keyboardLetterStatus.clear();
+      (state['keyboardStatus'] as Map<String, dynamic>).forEach((key, value) {
+        _keyboardLetterStatus[key] = LetterStatus.values[value as int];
+      });
+    });
+  }
+
+  @override
+  Future<void> initializeGame() async {
+    await _loadWordListFromAssets();
+    await _loadStats();
+
+    // Try to load saved state
+    final loaded = await loadGameState();
+    if (!loaded) {
+      _initializeGame();
+    }
+  }
+
+  @override
+  void resetGame() {
+    clearGameState();
+    _initializeGame();
+  }
+
   Future<void> _loadAssetsAndInitializeGame() async {
     await _loadWordListFromAssets();
     await _loadStats();
-    _initializeGame();
+
+    // Try to load saved game state, if not found start new game
+    final bool loadedState = await loadGameState();
+    if (!loadedState) {
+      _initializeGame();
+    }
+
     if (mounted) {
       setState(() {
         _isLoadingWords = false;
@@ -172,10 +263,11 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
         // Absolute fallback
         _targetWord = "ERROR"; // Should not happen
         // Potentially disable game or show error message
-        if (mounted)
+        if (mounted) {
           setState(() {
             _isGameOver = true;
           });
+        }
         return;
       }
     }
@@ -204,6 +296,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
       controller.reset();
     }
     _revealingGuessResult = [];
+    clearGameState(); // Clear any saved state when starting new game
     if (mounted) setState(() {}); // Ensure UI updates after initialization
   }
 
@@ -234,6 +327,12 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
           content: Text('"$guessedWord" is not a valid word.'),
           backgroundColor: Theme.of(context).colorScheme.error,
           duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(
+            bottom: MediaQuery.of(context).size.height - 150,
+            left: 20,
+            right: 20,
+          ),
         ),
       );
       _shakeController.forward(from: 0.0);
@@ -293,25 +392,6 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
       await _saveStats();
     }
 
-    // Global High Score Submission for Wordle (if won)
-    if (gameWonThisAttempt) {
-      final highScoreService = ref.read(highScoreServiceProvider);
-      final userId = highScoreService.getCurrentUserId();
-      final userName = highScoreService.getCurrentUserName();
-      if (userId != null && userName != null) {
-        final wordleHighScore = GameHighScore(
-          userId: userId,
-          userName: userName,
-          gameId: 'wordle',
-          score: 0, // Not directly applicable, using attempts
-          attempts: _currentAttempt + 1, // Number of attempts to win
-          timestamp: DateTime.now(),
-          scoreType: 'attempts', // Lower is better
-        );
-        await highScoreService.addHighScore(wordleHighScore);
-      }
-    }
-
     setState(() {
       _currentAttempt++;
       _currentGuess = [];
@@ -325,13 +405,52 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
         _isGameOver = true;
         _isGameWon = false;
       }
-
-      if (_isGameOver) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _showWordleGameOverDialog();
-        });
-      }
     });
+
+    // Handle game state after setState
+    if (_isGameOver) {
+      if (gameWonThisAttempt) {
+        await onGameWon();
+      } else {
+        await onGameLost();
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showWordleGameOverDialog();
+      });
+    } else {
+      // Save game state after each guess
+      await saveGameState();
+    }
+  }
+
+  // Override saveHighScore to include attempts for Wordle
+  @override
+  Future<void> saveHighScore() async {
+    try {
+      final service = ref.read(highScoreServiceProvider);
+      final user = ref.read(firebaseAuthProvider).currentUser;
+      if (user == null) {
+        AppLogger.warning('No user logged in to save high score', 'GAME');
+        return;
+      }
+
+      final highScore = GameHighScore(
+        gameId: gameId,
+        userId: user.uid,
+        userName: user.email ?? 'Anonymous',
+        score: 0, // Not directly applicable for Wordle
+        attempts: _currentAttempt, // Number of attempts to win
+        timestamp: DateTime.now(),
+        scoreType: 'attempts', // Lower is better
+      );
+      await service.addHighScore(highScore);
+      AppLogger.info(
+        'High score saved: $_currentAttempt attempts for $gameId',
+        'GAME',
+      );
+    } catch (e, st) {
+      AppLogger.error('Failed to save high score for $gameId', e, st, 'GAME');
+    }
   }
 
   void _updateKeyboardStatus(String char, LetterStatus newStatus) {
@@ -358,7 +477,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          backgroundColor: theme.colorScheme.surfaceVariant,
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
           title: Text(
             'How to Play Wordle',
             style: TextStyle(
@@ -396,7 +515,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Green: Letter is in the word and in the correct spot.',
+                        'Purple: Letter is in the word and in the correct spot.',
                         style: TextStyle(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -417,7 +536,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Yellow: Letter is in the word but in the wrong spot.',
+                        'Red: Letter is in the word but in the wrong spot.',
                         style: TextStyle(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -464,56 +583,26 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
   }
 
   void _showWordleGameOverDialog() {
-    final theme = Theme.of(context);
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          backgroundColor: theme.colorScheme.surfaceVariant,
-          title: Text(
-            _isGameWon ? 'Congratulations!' : 'Game Over',
-            style: TextStyle(
-              color:
-                  _isGameWon
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.error,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: Text(
+        return GameOverDialog(
+          isWon: _isGameWon,
+          message:
               _isGameWon
-                  ? 'You guessed the word: $_targetWord'
-                  : 'The word was: $_targetWord',
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.secondary,
-              ),
-              child: const Text('Main Menu'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                GoRouter.of(context).go('/');
-              },
-            ),
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.primary,
-              ),
-              child: const Text('Play Again'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                _initializeGame();
-              },
-            ),
-          ],
+                  ? 'You guessed the word in $_currentAttempt ${_currentAttempt == 1 ? 'try' : 'tries'}!'
+                  : 'Game Over',
+          subtitle: 'The word was: $_targetWord',
+          showConfetti: _isGameWon,
+          onPlayAgain: () {
+            Navigator.of(dialogContext).pop();
+            resetGame();
+          },
+          onMainMenu: () {
+            Navigator.of(dialogContext).pop();
+            context.go('/');
+          },
         );
       },
     );
@@ -533,7 +622,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          backgroundColor: theme.colorScheme.surfaceVariant,
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
           title: Text(
             'Wordle Statistics',
             style: TextStyle(
@@ -631,7 +720,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
               ],
             ),
           ),
@@ -687,6 +776,11 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
     }
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/'),
+          tooltip: 'Back to Home',
+        ),
         title: const Text('Wordle'),
         backgroundColor: theme.colorScheme.primaryContainer,
         actions: [
@@ -858,7 +952,9 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
             width: 2,
           ); // Active input border
         } else {
-          tileColor = theme.colorScheme.surfaceVariant.withOpacity(0.5);
+          tileColor = theme.colorScheme.surfaceContainerHighest.withOpacity(
+            0.5,
+          );
           textColor = theme.colorScheme.onSurfaceVariant;
           // Keep default border for empty/initial non-active tiles
         }
@@ -894,7 +990,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
     // Front face for flipping animation (before reveal)
     Widget frontFace = Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
         border: Border.all(color: theme.colorScheme.outline.withOpacity(0.5)),
         borderRadius: BorderRadius.circular(8.0),
       ),
@@ -1000,7 +1096,9 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
             Color keyTextColor = theme.colorScheme.onSurface;
 
             if (isSpecialKey) {
-              keyColor = theme.colorScheme.surfaceVariant.withOpacity(0.7);
+              keyColor = theme.colorScheme.surfaceContainerHighest.withOpacity(
+                0.7,
+              );
             } else {
               switch (status) {
                 case LetterStatus.notInWord:
@@ -1016,7 +1114,7 @@ class _WordleScreenState extends ConsumerState<WordleScreen>
                   keyTextColor = theme.colorScheme.onPrimaryContainer;
                   break;
                 default: // Initial
-                  keyColor = theme.colorScheme.surfaceVariant;
+                  keyColor = theme.colorScheme.surfaceContainerHighest;
               }
             }
 

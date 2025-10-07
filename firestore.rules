@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow only authenticated users to read/write their own user data
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // High scores: anyone can read, only authenticated users can write their own scores
+    match /high_scores/{gameId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+
+    // Messaging: only allow users to read/write their own messages
+    match /messages/{messageId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.senderId;
+    }
+
+    // Default: deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

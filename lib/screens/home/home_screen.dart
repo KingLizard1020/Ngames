@@ -12,8 +12,41 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authService = ref.read(authServiceProvider);
     final theme = Theme.of(context);
+    final authState = ref.watch(authStateChangesProvider);
+
+    if (authState.isLoading) {
+      return Scaffold(
+        backgroundColor: theme.colorScheme.surface,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (authState.hasError) {
+      return Scaffold(
+        backgroundColor: theme.colorScheme.surface,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                'An error occurred: \\n${authState.error}',
+                style: const TextStyle(color: Colors.red),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => ref.refresh(authStateChangesProvider),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.sentiment_very_satisfied_outlined),
@@ -25,17 +58,28 @@ class HomeScreen extends ConsumerWidget {
         title: const Text('NGames Home'),
         backgroundColor: theme.colorScheme.primaryContainer,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.leaderboard_rounded),
+            onPressed: () => context.go('/high-scores'),
+            tooltip: 'View High Scores',
+          ),
           PopupMenuButton<_HomeMenuAction>(
             icon: const Icon(Icons.account_circle_outlined),
             tooltip: "Account Options",
             onSelected: (_HomeMenuAction action) async {
-              switch (action) {
-                case _HomeMenuAction.logout:
-                  await authService.signOut();
-                  break;
-                case _HomeMenuAction.backToLogin:
-                  context.go('/auth');
-                  break;
+              try {
+                switch (action) {
+                  case _HomeMenuAction.logout:
+                    await authService.signOut();
+                    break;
+                  case _HomeMenuAction.backToLogin:
+                    context.go('/auth');
+                    break;
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: \\n${e.toString()}')),
+                );
               }
             },
             itemBuilder:

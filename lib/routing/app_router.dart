@@ -20,7 +20,10 @@ import 'package:ngames/games/hangman/hangman_screen.dart';
 import 'package:ngames/games/hangman/hangman_category_selection_screen.dart';
 
 // Services
-import 'package:ngames/services/auth_service.dart'; // For authStateChangesProvider
+import 'package:ngames/services/auth_service.dart';
+
+// Utils
+import 'package:ngames/core/utils/logger.dart';
 
 final goRouterProvider = Provider<GoRouter>((ref) {
   final authStateChanges = ref.watch(authStateChangesProvider);
@@ -113,8 +116,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
     redirect: (BuildContext context, GoRouterState state) {
+      // Handle loading state - allow navigation to proceed while auth loads
+      if (authStateChanges.isLoading) {
+        AppLogger.info(
+          'Auth state loading, allowing navigation to ${state.matchedLocation}',
+          'ROUTER',
+        );
+        return null;
+      }
+
       final loggedIn = authStateChanges.asData?.value != null;
       final onAuthScreen = state.matchedLocation == '/auth';
+
+      AppLogger.debug(
+        'Redirect check: loggedIn=$loggedIn, onAuthScreen=$onAuthScreen, location=${state.matchedLocation}',
+        'ROUTER',
+      );
 
       if (!loggedIn && !onAuthScreen) {
         return '/auth';
